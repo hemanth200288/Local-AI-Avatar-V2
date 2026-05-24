@@ -170,6 +170,113 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        /* --- Mobile bottom controls overlay --- */
+        .bottom-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            padding: 20px 20px 28px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 18px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.5));
+            pointer-events: none;
+        }
+        .bottom-controls > * { pointer-events: auto; }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        .control-btn:active { transform: scale(0.9); }
+        .mic-btn { background: var(--primary-color); }
+        .interrupt-btn { background: rgba(220, 53, 69, 0.85); }
+        .chat-toggle-btn { background: rgba(67, 97, 238, 0.85); }
+
+        .bottom-label {
+            position: absolute;
+            bottom: 76px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.6);
+            text-align: center;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            padding: 3px 12px;
+            border-radius: 10px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* --- Mobile chat bottom sheet --- */
+        @media (max-width: 767px) {
+            .main-layout { position: relative; }
+
+            .chat-section {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                height: 55vh;
+                z-index: 100;
+                border-left: none;
+                border-radius: 16px 16px 0 0;
+                padding: 14px 16px 16px;
+                transform: translateY(100%);
+                transition: transform 0.3s ease;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+            }
+            .chat-section.open {
+                transform: translateY(0);
+            }
+
+            .chat-section h5 { font-size: 0.9rem; }
+
+            .asr-container { margin-bottom: 10px; padding: 10px; }
+
+            .chat-section .input-group textarea { font-size: 0.85rem; }
+
+            .chat-section .voice-controls { display: none; }
+
+            .control-btn { width: 46px; height: 46px; font-size: 1.1rem; }
+            .bottom-controls { padding: 14px 14px 22px; gap: 16px; }
+        }
+
+        /* Desktop: show chat-close-btn, keep original layout */
+        .chat-close-btn { display: none; }
+        @media (min-width: 768px) {
+            .bottom-controls { display: none; }
+            .bottom-label { display: none; }
+            .chat-close-btn { display: none; }
+        }
+        @media (max-width: 767px) {
+            .chat-close-btn {
+                display: inline-block;
+                float: right;
+            }
+        }
+
+        body.chat-open .video-section {
+            /* shrinks when chat opens on mobile - handled via JS */
+        }
     </style>
 </head>
 <body>
@@ -193,11 +300,30 @@
                 <div class="blink"></div>
                 <span>Recording</span>
             </div>
+
+            <div class="bottom-label" id="voice-record-label">Click mic to start talking</div>
+
+            <div class="bottom-controls">
+                <div class="control-btn mic-btn" id="voice-record-btn" title="Click to talk">
+                    <i class="bi bi-mic-fill"></i>
+                </div>
+                <button class="control-btn chat-toggle-btn" id="chat-toggle-btn" title="Chat">
+                    <i class="bi bi-chat-dots-fill"></i>
+                </button>
+                <div class="control-btn interrupt-btn" id="interrupt-btn" title="Interrupt">
+                    <i class="bi bi-stop-circle-fill"></i>
+                </div>
+            </div>
         </div>
 
         <!-- Chat Section -->
         <div class="chat-section">
-            <h5 class="mb-3"><i class="bi bi-chat-dots-fill me-2"></i> AI Chat</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-chat-dots-fill me-2"></i> AI Chat</h5>
+                <button class="btn btn-sm btn-dark chat-close-btn" id="chat-close-btn">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
             
             <div class="asr-container" id="chat-messages">
                 <div class="asr-text system-message">
@@ -213,18 +339,6 @@
                     </button>
                 </div>
             </form>
-
-            <div class="voice-controls">
-                <div class="d-flex gap-3">
-                    <div class="voice-record-btn" id="voice-record-btn" title="Click to talk">
-                        <i class="bi bi-mic-fill"></i>
-                    </div>
-                    <div class="voice-record-btn bg-danger" id="interrupt-btn" title="Interrupt">
-                        <i class="bi bi-stop-circle-fill"></i>
-                    </div>
-                </div>
-                <small class="text-muted" id="voice-record-label">Click mic to start talking</small>
-            </div>
         </div>
     </div>
 
@@ -671,6 +785,14 @@
                     console.error('WebRTC play failed:', reason);
                 });
             }
+
+            // --- Chat toggle (ADDED, does not modify existing code) ---
+            function toggleChat() {
+                $('body').toggleClass('chat-open');
+                $('.chat-section').toggleClass('open');
+            }
+            $('#chat-toggle-btn').click(toggleChat);
+            $('#chat-close-btn').click(toggleChat);
         });
     </script>
 </body>

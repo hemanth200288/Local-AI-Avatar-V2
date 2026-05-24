@@ -69,6 +69,11 @@ class SessionManager:
         """同步添加静态或外部管理的会话（供非服务端入口调用）"""
         self.sessions[sessionid] = avatar_session
         
+    def update_active(self, sessionid: str):
+        """更新会话活跃时间/状态"""
+        if sessionid in self.sessions and self.sessions[sessionid] is not None:
+            logger.info(f"Session {sessionid} activity updated")
+            
     def remove_session(self, sessionid: str):
         """销毁会话资源"""
         if sessionid in self.sessions:

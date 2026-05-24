@@ -4,6 +4,7 @@ import numpy as np
 import resampy
 import soundfile as sf
 import edge_tts
+from edge_tts.exceptions import NoAudioReceived
 from io import BytesIO
 
 from utils.logger import logger
@@ -14,9 +15,15 @@ from registry import register
 class EdgeTTS(BaseTTS):
     def txt_to_audio(self,msg:tuple[str, dict]):
         text,textevent = msg
-        voicename = textevent.get('tts', {}).get('ref_file',self.opt.REF_FILE) #self.opt.REF_FILE #"zh-CN-YunxiaNeural"
+        if not text:
+            return
+        voicename = textevent.get('tts', {}).get('ref_file',self.opt.REF_FILE)
         t = time.time()
-        asyncio.new_event_loop().run_until_complete(self.__main(voicename,text))
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(self.__main(voicename,text))
+        finally:
+            loop.close()
         logger.info(f'-------edge tts time:{time.time()-t:.4f}s')
         if self.input_stream.getbuffer().nbytes<=0: #edgetts err
             logger.error('edgetts err!!!!!')
@@ -72,5 +79,7 @@ class EdgeTTS(BaseTTS):
                     #file.write(chunk["data"])
                 elif chunk["type"] == "WordBoundary":
                     pass
+        except NoAudioReceived:
+            logger.error(f'EdgeTTS: No audio received for voice "{voicename}". Check that the voice name is valid.')
         except Exception as e:
-            logger.exception('edgetts')
+            logger.exception(f'edgetts error for voice "{voicename}": {e}')

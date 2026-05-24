@@ -14,40 +14,38 @@ from registry import register
 class OpenRouterTTS(BaseTTS):
     def __init__(self, opt, parent):
         super().__init__(opt, parent)
+        self.model = getattr(opt, "openrouter_model", "openai/gpt-4o-mini-tts-2025-12-15")
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            logger.error("OPENROUTER_API_KEY environment variable not set.")
-        
+            logger.error("OPENROUTER_API_KEY not set. OpenRouter TTS disabled.")
+            self.client = None
+            return
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
         )
-        # Default model if not provided in opt (we can add it to opt later if needed)
-        self.model = getattr(opt, "openrouter_model", "openai/gpt-4o-mini-tts-2025-12-15")
 
     def txt_to_audio(self, msg: tuple[str, dict]):
         text, textevent = msg
-        # Try to get voice from event, then from opt.REF_FILE
+        if not text:
+            return
+
+        if self.client is None:
+            logger.error('OpenRouter TTS client unavailable (check API key)')
+            return
+
         voicename = textevent.get('tts', {}).get('ref_file', self.opt.REF_FILE)
-        
-        # If it's the default from config.py and likely not an OpenRouter voice, 
-        # we might want a fallback, but let's let the user configure it via --REF_FILE.
-        # The user's snippet used "cedar".
-        
         t = time.time()
         try:
-            # OpenRouter TTS is OpenAI-compatible
             response = self.client.audio.speech.create(
                 model=self.model,
                 voice=voicename,
                 input=text,
                 response_format="mp3"
             )
-            
-            # OpenAI-python response.content contains the raw bytes
             audio_data = response.content
             logger.info(f'-------openrouter tts time:{time.time()-t:.4f}s')
-            
+
             if not audio_data:
                 logger.error('openrouter tts error: no audio data received')
                 return
@@ -66,9 +64,15 @@ class OpenRouterTTS(BaseTTS):
                 eventpoint.update(**textevent)
                 self.parent.put_audio_frame(stream[idx:idx+self.chunk], eventpoint)
                 idx += self.chunk
-                
+
         except Exception as e:
-            logger.exception(f'openrouter tts exception: {e}')
+            err_str = str(e)
+            if '402' in err_str or 'insufficient' in err_str.lower():
+                logger.error('OpenRouter TTS: Insufficient credits. Add funds at https://openrouter.ai/settings/credits')
+            elif '429' in err_str or 'rate' in err_str.lower():
+                logger.error('OpenRouter TTS: Rate limited. Try again later.')
+            else:
+                logger.exception(f'openrouter tts exception: {e}')
 
     def __create_bytes_stream(self, byte_stream):
         stream, sample_rate = sf.read(byte_stream)
