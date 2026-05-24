@@ -176,7 +176,7 @@ def main():
         import time
         import os
         interval = int(os.environ.get("CLEANUP_INTERVAL", 10))
-        project_timeout = int(os.environ.get("PROJECT_EMPTY_TIMEOUT", 15))
+        project_timeout = int(os.environ.get("PROJECT_EMPTY_TIMEOUT", 180))
         zero_sessions_start_time = time.time() # Start counting from server boot
         
         while True:

@@ -11,7 +11,7 @@ from avatars.base_avatar import BaseAvatar
 
 import os
 ADMIN_PASSWORD = "Kittu.2002"
-SESSION_IDLE_TIMEOUT = int(os.environ.get("SESSION_IDLE_TIMEOUT", 120))  # auto-remove after 120s idle (2 minutes)
+SESSION_IDLE_TIMEOUT = int(os.environ.get("SESSION_IDLE_TIMEOUT", 180))  # auto-remove after 180s idle (3 minutes)
 SESSION_MAX_AGE = int(os.environ.get("SESSION_MAX_AGE", 86400))     # absolute max session lifetime 24 hours
 
 def _rand_session_id() -> str:
