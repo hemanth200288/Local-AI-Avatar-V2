@@ -280,8 +280,11 @@
 <body>
     <div class="dashboard-container">
         <div class="row">
-            <div class="col-12">
-                <h1 class="text-center mb-4">LiveTalking AI Avatar Platform</h1>
+            <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+                <h1 class="m-0">LiveTalking AI Avatar Platform</h1>
+                <a href="admin.html" class="btn btn-outline-secondary">
+                    <i class="bi bi-speedometer2"></i> Admin Console
+                </a>
             </div>
         </div>
 
@@ -298,6 +301,7 @@
                     <div class="card-body p-0">
                         <div class="video-container">
                             <video id="video" autoplay playsinline></video>
+                            <audio id="audio" autoplay style="display: none;"></audio>
                             <div class="recording-indicator" id="recording-indicator">
                                 <div class="blink"></div>
                                 <span>Recording</span>
@@ -651,8 +655,18 @@
             });
 
             $('#interrupt-btn').click(function() {
+                const $btn = $(this);
+                $btn.css('transform', 'scale(0.9)');
+                setTimeout(() => $btn.css('transform', ''), 100);
+                
                 console.log('Interrupting AI Avatar...');
                 const sessionid = String(document.getElementById('sessionid').value);
+                
+                if (sessionid === '0' || !sessionid) {
+                    console.warn('No active session to interrupt.');
+                    addChatMessage('No active session. Please start connection first.', 'system');
+                    return;
+                }
                 
                 fetch('/interrupt_talk', {
                     method: 'POST',
@@ -663,11 +677,17 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Interrupt successful:', data);
-                    addChatMessage('Interrupted AI Avatar', 'system');
+                    if (data.code === 0) {
+                        console.log('Interrupt successful:', data);
+                        addChatMessage('Interrupted AI Avatar', 'system');
+                    } else {
+                        console.error('Interrupt failed:', data.msg);
+                        addChatMessage('Interrupt failed: ' + data.msg, 'system');
+                    }
                 })
                 .catch(error => {
                     console.error('Error interrupting:', error);
+                    addChatMessage('Error sending interrupt request', 'system');
                 });
             });
             

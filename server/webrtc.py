@@ -161,6 +161,16 @@ class PlayerStreamTrack(MediaStreamTrack):
             self._player._stop(self)
             self._player = None
 
+    def flush_talk(self):
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+        # Optional: reset current_frame_count to avoid sudden jumps in timing if needed, 
+        # but aiortc might handle it.
+        # self.current_frame_count = 0 
+
 def player_worker_thread(
     quit_event,
     container
@@ -186,6 +196,12 @@ class HumanPlayer:
         self.__container = avatar_session
         if hasattr(self.__container, 'output'):
             self.__container.output._player = self
+
+    def flush_talk(self):
+        if self.__audio:
+            self.__audio.flush_talk()
+        if self.__video:
+            self.__video.flush_talk()
 
     def push_video(self, frame):
         from av import VideoFrame

@@ -32,7 +32,9 @@ class WebRTCOutput(BaseOutput):
         if self._player:
             self._player.push_audio(frame, eventpoint)
 
-
+    def flush_talk(self) -> None:
+        if self._player and hasattr(self._player, 'flush_talk'):
+            self._player.flush_talk()
 
     def get_buffer_size(self) -> int:
         if self._player and hasattr(self._player, 'get_buffer_size'):
