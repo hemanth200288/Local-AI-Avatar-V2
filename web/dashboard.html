@@ -6,6 +6,7 @@
     <title>LiveTalking AI Avatar Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@11/dist/css/shepherd.css">
     <style>
         :root {
             --primary-color: #4361ee;
@@ -275,6 +276,74 @@
         body.chat-open .video-section {
             /* shrinks when chat opens on mobile - handled via JS */
         }
+
+        /* --- Shepherd Tour Styles --- */
+        .shepherd-element {
+            background: #2d2d2d !important;
+            border: 1px solid #444 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+            max-width: 340px !important;
+        }
+        .shepherd-arrow:before {
+            background: #2d2d2d !important;
+            border: 1px solid #444 !important;
+        }
+        .shepherd-header {
+            background: transparent !important;
+            padding: 14px 14px 0 !important;
+        }
+        .shepherd-title {
+            color: #fff !important;
+            font-weight: 700 !important;
+            font-size: 1rem !important;
+        }
+        .shepherd-cancel-icon {
+            color: #888 !important;
+            font-size: 1.2rem !important;
+        }
+        .shepherd-cancel-icon:hover { color: #fff !important; }
+        .shepherd-text {
+            color: #ccc !important;
+            font-size: 0.85rem !important;
+            line-height: 1.5 !important;
+            padding: 10px 14px 14px !important;
+        }
+        .shepherd-footer {
+            background: transparent !important;
+            padding: 0 14px 14px !important;
+            gap: 8px !important;
+        }
+        .shepherd-button {
+            border-radius: 8px !important;
+            padding: 6px 14px !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
+        }
+        .shepherd-button:not(.shepherd-button-secondary) {
+            background: #4361ee !important;
+            color: #fff !important;
+        }
+        .shepherd-button:not(.shepherd-button-secondary):hover {
+            background: #3f37c9 !important;
+        }
+        .shepherd-button-secondary {
+            background: transparent !important;
+            color: #888 !important;
+            border: 1px solid #555 !important;
+        }
+        .shepherd-button-secondary:hover {
+            background: rgba(255,255,255,0.05) !important;
+            color: #fff !important;
+        }
+        .shepherd-modal-overlay-container {
+            background: rgba(0,0,0,0.6) !important;
+            backdrop-filter: blur(4px) !important;
+        }
+        @media (max-width: 767px) {
+            .shepherd-element { max-width: 280px !important; }
+            .shepherd-text { font-size: 0.8rem !important; }
+        }
     </style>
 </head>
 <body>
@@ -353,6 +422,7 @@
     <script src="srs.sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shepherd.js@11/dist/js/shepherd.min.js"></script>
     <script>
         $(document).ready(function() {
             let mediaRecorder;
@@ -781,6 +851,90 @@
             $('#chat-toggle-btn').click(toggleChat);
             $('#chat-close-btn').click(toggleChat);
         });
+
+        // --- Guided Tour ---
+        function startTour() {
+            const tour = new Shepherd.Tour({
+                useModalOverlay: false,
+                defaultStepOptions: {
+                    scrollTo: false,
+                    cancelIcon: { enabled: true },
+                    popperOptions: {
+                        modifiers: [{ name: 'offset', options: { offset: [0, 12] } }]
+                    }
+                }
+            });
+
+            tour.addStep({
+                id: 'welcome',
+                title: 'Meet My Digital Clone',
+                text: 'Yes, this is my actual face, though the model aggressively shaved my beard during training. There is a GPU sweating somewhere to render this, so let\u2019s put it to work. Treat this avatar as my interactive proxy \u2014 it is trained on my professional background, my tech stack, and my thought process.',
+                buttons: [
+                    { text: 'Next \u2192', action: tour.next }
+                ]
+            });
+
+            tour.addStep({
+                id: 'video',
+                attachTo: { element: '#video', on: 'top' },
+                title: '\ud83d\udc4b This Is Me (Well, Almost)',
+                text: 'The avatar you see here is my digital clone. Ask me anything \u2014 about my experience, my achievements, my interests. I\u2019ll respond just like I would in person.',
+                buttons: [
+                    { text: '\u2190 Back', action: tour.back, secondary: true },
+                    { text: 'Next \u2192', action: tour.next }
+                ]
+            });
+
+            tour.addStep({
+                id: 'mic',
+                attachTo: { element: '#voice-record-btn', on: 'top' },
+                title: '\ud83c\udf99\ufe0f Conduct a Live Technical Screen',
+                text: 'Click here to pipe your voice directly into the model. Go ahead and grill me. Ask about my experience, my achievements, interests, etc. Voice auto-submits after 2 seconds of silence.',
+                buttons: [
+                    { text: '\u2190 Back', action: tour.back, secondary: true },
+                    { text: 'Next \u2192', action: tour.next }
+                ]
+            });
+
+            tour.addStep({
+                id: 'chat',
+                attachTo: { element: '#chat-toggle-btn', on: 'top' },
+                title: '\ud83d\udcac Prefer Typing?',
+                text: 'Fire off a question here. The chat panel supports both text and voice input. Type naturally \u2014 the AI understands human-like sentences and responds in kind.',
+                buttons: [
+                    { text: '\u2190 Back', action: tour.back, secondary: true },
+                    { text: 'Next \u2192', action: tour.next }
+                ]
+            });
+
+            tour.addStep({
+                id: 'interrupt',
+                attachTo: { element: '#interrupt-btn', on: 'top' },
+                title: '\u23f9\ufe0f Interrupt \u2014 For Attendance',
+                text: 'Need to cut me off mid-sentence? Hit this button. Session manager takes note of your attendance and keeps the conversation flowing smoothly.',
+                buttons: [
+                    { text: '\u2190 Back', action: tour.back, secondary: true },
+                    { text: 'Next \u2192', action: tour.next }
+                ]
+            });
+
+            tour.addStep({
+                id: 'session',
+                attachTo: { element: '.controls-overlay', on: 'bottom' },
+                title: '\ud83d\udccb Session Manager \u2014 Attendance',
+                text: 'This is your session control center. Connection status tells you if the avatar is live, and the admin panel lets you monitor sessions, configurations, and activity logs. Your attendance is being tracked here.',
+                buttons: [
+                    { text: '\u2190 Back', action: tour.back, secondary: true },
+                    { text: 'Done \u2713', action: tour.next }
+                ]
+            });
+
+            tour.start();
+        }
+
+        setTimeout(function() {
+            try { startTour(); } catch(e) { console.warn('Tour init failed:', e); }
+        }, 1500);
     </script>
 </body>
 </html>
