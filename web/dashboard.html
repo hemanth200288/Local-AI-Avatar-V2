@@ -263,8 +263,6 @@
         /* Desktop: show chat-close-btn, keep original layout */
         .chat-close-btn { display: none; }
         @media (min-width: 768px) {
-            .bottom-controls { display: none; }
-            .bottom-label { display: none; }
             .chat-close-btn { display: none; }
         }
         @media (max-width: 767px) {
@@ -693,23 +691,7 @@
                 clearTimeout(silenceTimer);
                 isRecording = false;
                 
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                    // Stop all tracks
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                }
-                
-                // Reset visual feedback
-                $('#voice-record-btn').removeClass('recording-pulse');
-                $('#voice-record-btn').css('background-color', '');
-                $('#voice-record-label').text('Click mic to start talking');
-                
-                // Stop speech recognition
-                if (recognition) {
-                    recognition.stop();
-                }
-
-                // Send audio blob to server
+                // Set onstop BEFORE calling stop()
                 mediaRecorder.onstop = function() {
                     if (audioChunks.length === 0) return;
                     
@@ -735,6 +717,21 @@
                         console.error('Error sending audio to server:', error);
                     });
                 };
+
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Reset visual feedback
+                $('#voice-record-btn').removeClass('recording-pulse');
+                $('#voice-record-btn').css('background-color', '');
+                $('#voice-record-label').text('Click mic to start talking');
+                
+                // Stop speech recognition
+                if (recognition) {
+                    recognition.stop();
+                }
             }
 
             // WebRTC related features

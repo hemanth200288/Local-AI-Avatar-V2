@@ -3,10 +3,13 @@
 ###############################################################################
 
 import asyncio
+import time
 import uuid
 from typing import Dict, Optional
 from utils.logger import logger
 from avatars.base_avatar import BaseAvatar
+
+ADMIN_PASSWORD = "Kittu.2002"
 
 def _rand_session_id() -> str:
     """生成 UUID session ID"""
@@ -29,6 +32,7 @@ class SessionManager:
         if not hasattr(self, "initialized"):
             self.sessions: Dict[str, BaseAvatar] = {}
             self.build_session_fn = None
+            self.blocked_ips: set = set()
             self.initialized = True
 
     def init_builder(self, build_session_fn):
@@ -72,14 +76,54 @@ class SessionManager:
     def update_active(self, sessionid: str):
         """更新会话活跃时间/状态"""
         if sessionid in self.sessions and self.sessions[sessionid] is not None:
-            logger.info(f"Session {sessionid} activity updated")
+            pass
             
+    def active_count(self) -> int:
+        return sum(1 for s in self.sessions.values() if s is not None)
+
+    def all_sessions_info(self) -> list:
+        result = []
+        for sid in list(self.sessions.keys()):
+            avatar = self.sessions[sid]
+            if avatar is not None:
+                s_opt = getattr(avatar, 'opt', None)
+                entry = {
+                    "sessionid": sid,
+                    "speaking": avatar.is_speaking() if hasattr(avatar, 'is_speaking') else False,
+                    "recording": getattr(avatar, 'recording', False),
+                }
+                if s_opt:
+                    entry.update({
+                        "model": getattr(s_opt, "model", ""),
+                        "avatar_id": getattr(s_opt, "avatar_id", ""),
+                        "REF_FILE": getattr(s_opt, "REF_FILE", ""),
+                        "transport": getattr(s_opt, "transport", ""),
+                        "batch_size": getattr(s_opt, "batch_size", 0),
+                        "customopt": getattr(s_opt, "customopt", []),
+                    })
+                result.append(entry)
+        return result
+
     def remove_session(self, sessionid: str):
         """销毁会话资源"""
         if sessionid in self.sessions:
             logger.info(f"Removing session {sessionid}")
             # todo: 还可以主动调 avatar_session 释放
             self.sessions.pop(sessionid, None)
+
+    def is_ip_blocked(self, ip: str) -> bool:
+        return ip in self.blocked_ips
+
+    def block_ip(self, ip: str):
+        self.blocked_ips.add(ip)
+        logger.info("Blocked IP: %s", ip)
+
+    def unblock_ip(self, ip: str):
+        self.blocked_ips.discard(ip)
+        logger.info("Unblocked IP: %s", ip)
+
+    def get_blocked_ips(self) -> list:
+        return sorted(self.blocked_ips)
 
 # 单例抛出
 session_manager = SessionManager()

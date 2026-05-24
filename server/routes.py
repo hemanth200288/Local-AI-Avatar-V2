@@ -30,7 +30,7 @@ def json_error(msg: str, code: int = -1):
     )
 
 
-from server.session_manager import session_manager
+from server.session_manager import session_manager, ADMIN_PASSWORD
 from server.avatar_routes import setup_avatar_routes
 
 def get_session(request, sessionid: str):
@@ -163,31 +163,69 @@ async def admin_config(request):
 
 
 async def admin_sessions(request):
-    """Admin: 获取活跃的会话及其配置"""
+    """Admin: 获取活跃的会话信息"""
     try:
-        sessions_info = []
-        for sid, avatar_session in session_manager.sessions.items():
-            if avatar_session:
-                s_opt = getattr(avatar_session, 'opt', None)
-                s_data = {
-                    "sessionid": sid,
-                    "speaking": avatar_session.is_speaking() if hasattr(avatar_session, 'is_speaking') else False,
-                    "recording": getattr(avatar_session, 'recording', False),
-                }
-                if s_opt:
-                    s_data.update({
-                        "model": getattr(s_opt, "model", ""),
-                        "avatar_id": getattr(s_opt, "avatar_id", ""),
-                        "REF_FILE": getattr(s_opt, "REF_FILE", ""),
-                        "transport": getattr(s_opt, "transport", ""),
-                        "batch_size": getattr(s_opt, "batch_size", 0),
-                        "customopt": getattr(s_opt, "customopt", []),
-                    })
-                sessions_info.append(s_data)
-        return json_ok(data={"sessions": sessions_info})
+        sessions_info = session_manager.all_sessions_info()
+        return json_ok(data={
+            "sessions": sessions_info,
+            "active_count": session_manager.active_count(),
+        })
     except Exception as e:
         logger.exception('admin_sessions exception:')
         return json_error(str(e))
+
+
+async def admin_session_kill(request):
+    """Admin: 强制关闭指定会话"""
+    try:
+        params = await request.json()
+        if params.get("password") != ADMIN_PASSWORD:
+            return json_error("wrong password")
+        sessionid = params.get("sessionid", "")
+        if not session_manager.has_session(sessionid):
+            return json_error("session not found")
+        session_manager.remove_session(sessionid)
+        return json_ok(data={"removed": sessionid})
+    except Exception as e:
+        logger.exception('admin_session_kill exception:')
+        return json_error(str(e))
+
+
+async def admin_block_ip(request):
+    """Admin: 封禁 IP"""
+    try:
+        params = await request.json()
+        if params.get("password") != ADMIN_PASSWORD:
+            return json_error("wrong password")
+        ip = params.get("ip", "").strip()
+        if not ip:
+            return json_error("ip required")
+        session_manager.block_ip(ip)
+        return json_ok(data={"blocked": ip})
+    except Exception as e:
+        logger.exception('admin_block_ip exception:')
+        return json_error(str(e))
+
+
+async def admin_unblock_ip(request):
+    """Admin: 解封 IP"""
+    try:
+        params = await request.json()
+        if params.get("password") != ADMIN_PASSWORD:
+            return json_error("wrong password")
+        ip = params.get("ip", "").strip()
+        if not ip:
+            return json_error("ip required")
+        session_manager.unblock_ip(ip)
+        return json_ok(data={"unblocked": ip})
+    except Exception as e:
+        logger.exception('admin_unblock_ip exception:')
+        return json_error(str(e))
+
+
+async def admin_blocked_ips(request):
+    """Admin: 获取被封禁的 IP 列表"""
+    return json_ok(data={"blocked_ips": session_manager.get_blocked_ips()})
 
 
 # ─── 路由注册 ──────────────────────────────────────────────────────────────
@@ -212,16 +250,21 @@ async def humanaudiochat(request):
 
         # 调用 STT
         from llm import stt_response, llm_response
-        text = stt_response(temp_audio)
-        
-        # 删除临时文件
+        stt_error = None
         try:
-            os.remove(temp_audio)
-        except:
-            pass
+            text = stt_response(temp_audio)
+        except Exception as e:
+            stt_error = str(e)
+            logger.exception('STT exception: %s', stt_error)
+            text = None
+        finally:
+            try:
+                os.remove(temp_audio)
+            except:
+                pass
 
         if not text:
-            return json_error("STT failed")
+            return json_error(stt_error or "STT failed")
 
         logger.info(f"STT Result: {text}")
 
@@ -250,6 +293,10 @@ def setup_routes(app):
     app.router.add_post("/is_speaking", is_speaking)
     app.router.add_get("/api/admin/config", admin_config)
     app.router.add_get("/api/admin/sessions", admin_sessions)
+    app.router.add_post("/api/admin/session/kill", admin_session_kill)
+    app.router.add_post("/api/admin/block_ip", admin_block_ip)
+    app.router.add_post("/api/admin/unblock_ip", admin_unblock_ip)
+    app.router.add_get("/api/admin/blocked_ips", admin_blocked_ips)
 
     # 注册 avatar 生成相关的路由
     setup_avatar_routes(app)
