@@ -10,6 +10,7 @@ from utils.logger import logger
 from avatars.base_avatar import BaseAvatar
 
 ADMIN_PASSWORD = "Kittu.2002"
+SESSION_IDLE_TIMEOUT = 120  # auto-remove after 2 minutes idle
 
 def _rand_session_id() -> str:
     """生成 UUID session ID"""
@@ -33,6 +34,9 @@ class SessionManager:
             self.sessions: Dict[str, BaseAvatar] = {}
             self.build_session_fn = None
             self.blocked_ips: set = set()
+            self._created_at: Dict[str, float] = {}
+            self._last_active: Dict[str, float] = {}
+            self._metadata: Dict[str, dict] = {}
             self.initialized = True
 
     def init_builder(self, build_session_fn):
@@ -61,6 +65,9 @@ class SessionManager:
         logger.info('Creating sessionid=%s, current session num=%d', sessionid, len(self.sessions))
         # 预先占位防止重复
         self.sessions[sessionid] = None
+        now = time.time()
+        self._created_at[sessionid] = now
+        self._last_active[sessionid] = now
 
         # 在线程池中构建 session（加载模型非常耗时）
         avatar_session = await asyncio.get_event_loop().run_in_executor(
@@ -72,25 +79,40 @@ class SessionManager:
     def add_session(self, sessionid: str, avatar_session: BaseAvatar):
         """同步添加静态或外部管理的会话（供非服务端入口调用）"""
         self.sessions[sessionid] = avatar_session
+        now = time.time()
+        self._created_at[sessionid] = now
+        self._last_active[sessionid] = now
         
     def update_active(self, sessionid: str):
         """更新会话活跃时间/状态"""
         if sessionid in self.sessions and self.sessions[sessionid] is not None:
-            pass
+            now = time.time()
+            self._last_active[sessionid] = now
+            if sessionid not in self._created_at:
+                self._created_at[sessionid] = now
             
     def active_count(self) -> int:
         return sum(1 for s in self.sessions.values() if s is not None)
 
     def all_sessions_info(self) -> list:
+        now = time.time()
         result = []
         for sid in list(self.sessions.keys()):
             avatar = self.sessions[sid]
             if avatar is not None:
                 s_opt = getattr(avatar, 'opt', None)
+                meta = self._metadata.get(sid, {})
+                created = self._created_at.get(sid)
+                last_active = self._last_active.get(sid)
                 entry = {
                     "sessionid": sid,
                     "speaking": avatar.is_speaking() if hasattr(avatar, 'is_speaking') else False,
                     "recording": getattr(avatar, 'recording', False),
+                    "ip": meta.get("ip", ""),
+                    "device": meta.get("device", ""),
+                    "created_at": created,
+                    "age_seconds": round(now - created, 1) if created else None,
+                    "idle_seconds": round(now - last_active, 1) if last_active else None,
                 }
                 if s_opt:
                     entry.update({
@@ -108,8 +130,29 @@ class SessionManager:
         """销毁会话资源"""
         if sessionid in self.sessions:
             logger.info(f"Removing session {sessionid}")
-            # todo: 还可以主动调 avatar_session 释放
             self.sessions.pop(sessionid, None)
+            self._created_at.pop(sessionid, None)
+            self._last_active.pop(sessionid, None)
+            self._metadata.pop(sessionid, None)
+
+    def set_session_metadata(self, sessionid: str, ip: str = "", user_agent: str = ""):
+        """Store IP and device info for a session"""
+        if sessionid not in self.sessions:
+            return
+        self._metadata[sessionid] = {"ip": ip, "device": user_agent[:100] if user_agent else ""}
+
+    def cleanup_expired_sessions(self):
+        """Remove sessions idle longer than SESSION_IDLE_TIMEOUT"""
+        now = time.time()
+        expired = []
+        for sid in list(self.sessions.keys()):
+            last_active = self._last_active.get(sid)
+            if last_active and (now - last_active) > SESSION_IDLE_TIMEOUT:
+                expired.append(sid)
+        for sid in expired:
+            logger.info("Session %s expired (idle > %ds)", sid, SESSION_IDLE_TIMEOUT)
+            self.remove_session(sid)
+        return len(expired)
 
     def is_ip_blocked(self, ip: str) -> bool:
         return ip in self.blocked_ips

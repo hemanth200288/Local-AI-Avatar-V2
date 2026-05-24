@@ -172,6 +172,17 @@ def main():
     appasync["opt"] = opt
     appasync["rtc_manager"] = rtc_manager
 
+    # Background session cleanup
+    async def cleanup_loop():
+        while True:
+            await asyncio.sleep(30)
+            session_manager.cleanup_expired_sessions()
+    cleanup_task = asyncio.ensure_future(cleanup_loop())
+
+    async def on_shutdown(app):
+        cleanup_task.cancel()
+        await rtc_manager.shutdown()
+
     appasync.on_shutdown.append(on_shutdown)
     appasync.router.add_post("/offer", offer)
     appasync.router.add_get("/record/{sessionid}", download_record)

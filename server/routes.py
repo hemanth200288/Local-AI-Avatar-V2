@@ -242,6 +242,8 @@ async def humanaudiochat(request):
         if avatar_session is None:
             return json_error("session not found")
 
+        session_manager.update_active(sessionid)
+
         # 保存临时文件用于 STT
         temp_audio = f"data/tmp/stt_{sessionid}_{int(time.time())}.wav"
         os.makedirs(os.path.dirname(temp_audio), exist_ok=True)

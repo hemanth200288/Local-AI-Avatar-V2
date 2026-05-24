@@ -43,6 +43,15 @@ class RTCManager:
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
+        # IP block check
+        ip = request.headers.get("X-Forwarded-For", request.remote)
+        if session_manager.is_ip_blocked(ip):
+            logger.info("Blocked IP %s attempted WebRTC offer", ip)
+            return web.Response(
+                content_type="application/json",
+                text=json.dumps({"code": -1, "msg": "blocked"}),
+            )
+
         if False: # 不再由 RTCManager 控制 max_session，让业务逻辑或SessionManager 控制
             logger.info('reach max session')
             return web.Response(
@@ -55,6 +64,11 @@ class RTCManager:
         # 通过 SessionManager 构建
         sessionid = await session_manager.create_session(params)
         logger.info('offer sessionid=%s', sessionid)
+
+        # Store IP/device metadata
+        user_agent = request.headers.get("User-Agent", "")
+        session_manager.set_session_metadata(sessionid, ip=ip, user_agent=user_agent)
+
         avatar_session = session_manager.get_session(sessionid)
 
         # 创建 PeerConnection

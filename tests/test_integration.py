@@ -63,6 +63,8 @@ class TestAdminAPI:
         from server.routes import admin_sessions
 
         session_manager.add_session("admin-test", MockAvatar())
+        session_manager.set_session_metadata("admin-test", ip="5.5.5.5",
+                                              user_agent="Mozilla/5.0 Chrome")
 
         request = MagicMock()
         request.app = web.Application()
@@ -74,6 +76,11 @@ class TestAdminAPI:
         s = next(s for s in sessions if s["sessionid"] == "admin-test")
         assert s["speaking"] is False
         assert s["recording"] is False
+        assert s["ip"] == "5.5.5.5"
+        assert "Chrome" in s["device"]
+        assert s["created_at"] is not None
+        assert s["age_seconds"] is not None
+        assert s["idle_seconds"] is not None
         assert data["data"]["active_count"] >= 1
 
     @pytest.mark.asyncio
@@ -153,3 +160,25 @@ class TestIPBlockRoutes:
         data = json.loads(resp.text)
         assert data["code"] == 0
         assert "9.9.9.9" in data["data"]["blocked_ips"]
+
+
+class TestWebRTCOfferBlock:
+    @pytest.mark.asyncio
+    async def test_blocked_ip_rejected(self):
+        from server.rtc_manager import RTCManager
+
+        session_manager.block_ip("9.9.9.9")
+
+        opt = MagicMock()
+        rtc = RTCManager(opt)
+
+        request = AsyncMock()
+        request.headers = {"X-Forwarded-For": "9.9.9.9",
+                           "User-Agent": "Mozilla/5.0"}
+        request.remote = "9.9.9.9"
+        request.json.return_value = {"sdp": "", "type": "offer"}
+
+        resp = await rtc.handle_offer(request)
+        data = json.loads(resp.text)
+        assert data["code"] == -1
+        assert data["msg"] == "blocked"
