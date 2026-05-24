@@ -43,9 +43,11 @@ def parse_args():
                         help="custom action json")
 
     # ─── TTS ───────────────────────────────────────────────────────────
-    parser.add_argument('--tts', type=str, default='edgetts',
-                        help="tts plugin: edgetts/gpt-sovits/cosyvoice/fishtts/tencent/doubao/indextts2/azuretts/qwentts")
-    parser.add_argument('--REF_FILE', type=str, default="en-IN-PrabhatNeural",
+    parser.add_argument('--tts', type=str, default='openrouter',
+                        help="tts plugin: edgetts/gpt-sovits/cosyvoice/fishtts/tencent/doubao/indextts2/azuretts/qwentts/openrouter")
+    parser.add_argument('--openrouter_model', type=str, default='openai/gpt-4o-mini-tts-2025-12-15',
+                        help="OpenRouter TTS model ID")
+    parser.add_argument('--REF_FILE', type=str, default="cedar",
                         help="Voice model ID or reference file name")
     parser.add_argument('--REF_TEXT', type=str, default=None)
     parser.add_argument('--TTS_SERVER', type=str, default='http://127.0.0.1:9880')

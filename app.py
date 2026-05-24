@@ -48,6 +48,10 @@ import random
 import shutil
 import asyncio
 import torch
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 from io import BytesIO
 from typing import Dict
 from utils.logger import logger
