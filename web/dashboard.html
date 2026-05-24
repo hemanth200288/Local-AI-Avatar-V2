@@ -691,32 +691,22 @@
                 clearTimeout(silenceTimer);
                 isRecording = false;
                 
-                // Set onstop BEFORE calling stop()
-                mediaRecorder.onstop = function() {
-                    if (audioChunks.length === 0) return;
-                    
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const formData = new FormData();
-                    formData.append('file', audioBlob, 'voice.wav');
-                    formData.append('sessionid', String(document.getElementById('sessionid').value));
-
-                    fetch('/humanaudiochat', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.code === 0) {
-                            addChatMessage(data.data.text, 'user');
-                            $('#chat-message').val('');
-                        } else {
-                            console.error('Server-side STT failed:', data.msg);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error sending audio to server:', error);
+                // Auto-submit transcribed text to chat
+                var message = $('#chat-message').val();
+                if (message.trim()) {
+                    fetch('/human', {
+                        body: JSON.stringify({
+                            text: message,
+                            type: 'chat',
+                            interrupt: true,
+                            sessionid: String(document.getElementById('sessionid').value),
+                        }),
+                        headers: { 'Content-Type': 'application/json' },
+                        method: 'POST'
                     });
-                };
+                    addChatMessage(message, 'user');
+                    $('#chat-message').val('');
+                }
 
                 if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                     mediaRecorder.stop();
