@@ -25,10 +25,17 @@ def llm_response(message, avatar_session:'BaseAvatar', datainfo:dict={}):
         end = time.perf_counter()
         logger.info(f"llm Time init: {end-start}s,{message}")
         
+        # Load system prompt from propmt.txt
+        system_prompt = 'You are a helpful assistant.'
+        prompt_file = os.path.join(os.path.dirname(__file__), 'propmt.txt')
+        if os.path.exists(prompt_file):
+            with open(prompt_file, 'r', encoding='utf-8') as f:
+                system_prompt = f.read().strip()
+        
         completion = client.chat.completions.create(
             model="google/gemma-3-12b-it",
             messages=[
-                {'role': 'system', 'content': 'You are a 20-year-old Indian male assistant. You must respond ONLY in English. Keep your responses concise, conversational, and helpful.'},
+                {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': message}
             ],
             stream=True,
