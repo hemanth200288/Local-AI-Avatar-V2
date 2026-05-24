@@ -382,11 +382,16 @@
                                     </div>
                                 </form>
                                 
-                                <!-- Push to Talk Button -->
-                                <div class="voice-record-btn" id="voice-record-btn">
-                                    <i class="bi bi-mic-fill"></i>
+                                <!-- Voice Control Buttons -->
+                                <div class="d-flex justify-content-center align-items-center mt-3">
+                                    <div class="voice-record-btn mx-2" id="voice-record-btn" title="Click to start/stop talking">
+                                        <i class="bi bi-mic-fill"></i>
+                                    </div>
+                                    <div class="voice-record-btn mx-2 bg-danger" id="interrupt-btn" title="Interrupt AI Avatar">
+                                        <i class="bi bi-stop-circle-fill"></i>
+                                    </div>
                                 </div>
-                                <div class="voice-record-label">Hold to talk, release to send</div>
+                                <div class="voice-record-label" id="voice-record-label">Click microphone to start talking</div>
                             </div>
                             
                             <!-- Speech Mode -->
@@ -636,14 +641,34 @@
                 };
             }
             
-            // Push to talk button events
-            $('#voice-record-btn').on('mousedown touchstart', function(e) {
-                e.preventDefault();
-                startRecording();
-            }).on('mouseup mouseleave touchend', function() {
+            // Voice Control Events
+            $('#voice-record-btn').click(function() {
                 if (isRecording) {
                     stopRecording();
+                } else {
+                    startRecording();
                 }
+            });
+
+            $('#interrupt-btn').click(function() {
+                console.log('Interrupting AI Avatar...');
+                const sessionid = String(document.getElementById('sessionid').value);
+                
+                fetch('/interrupt_talk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sessionid: sessionid })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Interrupt successful:', data);
+                    addChatMessage('Interrupted AI Avatar', 'system');
+                })
+                .catch(error => {
+                    console.error('Error interrupting:', error);
+                });
             });
             
             // Start recording
@@ -666,6 +691,7 @@
                         
                         $('#voice-record-btn').addClass('recording-pulse');
                         $('#voice-record-btn').css('background-color', '#dc3545');
+                        $('#voice-record-label').text('Recording... Click again to stop and send');
                         
                         if (recognition) {
                             recognition.start();
@@ -695,8 +721,9 @@
                 // Reset visual feedback
                 $('#voice-record-btn').removeClass('recording-pulse');
                 $('#voice-record-btn').css('background-color', '');
+                $('#voice-record-label').text('Click microphone to start talking');
                 
-                // Stop speech recognition (optional, keep it for real-time feedback if desired, but we'll use server-side for final)
+                // Stop speech recognition
                 if (recognition) {
                     recognition.stop();
                 }
