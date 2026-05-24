@@ -10,7 +10,8 @@ from utils.logger import logger
 from avatars.base_avatar import BaseAvatar
 
 ADMIN_PASSWORD = "Kittu.2002"
-SESSION_IDLE_TIMEOUT = 120  # auto-remove after 2 minutes idle
+SESSION_IDLE_TIMEOUT = 40   # auto-remove after 40s idle (testing)
+SESSION_MAX_AGE = 600       # absolute max session lifetime 10 minutes
 
 def _rand_session_id() -> str:
     """生成 UUID session ID"""
@@ -37,11 +38,16 @@ class SessionManager:
             self._created_at: Dict[str, float] = {}
             self._last_active: Dict[str, float] = {}
             self._metadata: Dict[str, dict] = {}
+            self._on_remove = None
             self.initialized = True
 
     def init_builder(self, build_session_fn):
         """配置用于构建 avatar_session 的工厂函数"""
         self.build_session_fn = build_session_fn
+
+    def set_on_remove(self, callback):
+        """Register callback(sessionid) called when a session is removed"""
+        self._on_remove = callback
         
     def get_session(self, sessionid: str) -> Optional[BaseAvatar]:
         """获取已存活的会话"""
@@ -134,6 +140,11 @@ class SessionManager:
             self._created_at.pop(sessionid, None)
             self._last_active.pop(sessionid, None)
             self._metadata.pop(sessionid, None)
+            if self._on_remove:
+                try:
+                    self._on_remove(sessionid)
+                except Exception as e:
+                    logger.error("on_remove callback failed: %s", e)
 
     def set_session_metadata(self, sessionid: str, ip: str = "", user_agent: str = ""):
         """Store IP and device info for a session"""
@@ -142,15 +153,18 @@ class SessionManager:
         self._metadata[sessionid] = {"ip": ip, "device": user_agent[:100] if user_agent else ""}
 
     def cleanup_expired_sessions(self):
-        """Remove sessions idle longer than SESSION_IDLE_TIMEOUT"""
+        """Remove sessions idle longer than SESSION_IDLE_TIMEOUT or older than SESSION_MAX_AGE"""
         now = time.time()
         expired = []
         for sid in list(self.sessions.keys()):
             last_active = self._last_active.get(sid)
+            created = self._created_at.get(sid)
             if last_active and (now - last_active) > SESSION_IDLE_TIMEOUT:
-                expired.append(sid)
-        for sid in expired:
-            logger.info("Session %s expired (idle > %ds)", sid, SESSION_IDLE_TIMEOUT)
+                expired.append((sid, "idle"))
+            elif created and (now - created) > SESSION_MAX_AGE:
+                expired.append((sid, "max_age"))
+        for sid, reason in expired:
+            logger.info("Session %s expired (%s)", sid, reason)
             self.remove_session(sid)
         return len(expired)
 

@@ -5,6 +5,7 @@ from server.session_manager import (
     session_manager,
     ADMIN_PASSWORD,
     SESSION_IDLE_TIMEOUT,
+    SESSION_MAX_AGE,
 )
 
 
@@ -141,6 +142,21 @@ class TestExpiry:
 
     def test_cleanup_runs_safely_on_empty(self):
         assert session_manager.cleanup_expired_sessions() == 0
+
+    def test_cleanup_removes_by_max_age(self):
+        session_manager.add_session("e3", MockAvatar())
+        session_manager.update_active("e3")
+        session_manager._created_at["e3"] = time.time() - SESSION_MAX_AGE - 10
+        removed = session_manager.cleanup_expired_sessions()
+        assert removed == 1
+        assert not session_manager.has_session("e3")
+
+    def test_max_age_takes_priority_over_idle(self):
+        session_manager.add_session("e4", MockAvatar())
+        session_manager._created_at["e4"] = time.time() - SESSION_MAX_AGE - 10
+        session_manager._last_active["e4"] = time.time()  # recently active
+        removed = session_manager.cleanup_expired_sessions()
+        assert removed == 1
 
 
 class TestADMIN_PASSWORD:

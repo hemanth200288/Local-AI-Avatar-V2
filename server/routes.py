@@ -49,6 +49,7 @@ async def human(request):
         avatar_session = get_session(request, sessionid)
         if avatar_session is None:
             return json_error("session not found")
+        session_manager.update_active(sessionid)
 
         if params.get('interrupt'):
             avatar_session.flush_talk()
@@ -80,6 +81,7 @@ async def interrupt_talk(request):
         avatar_session = get_session(request, sessionid)
         if avatar_session is None:
             return json_error("session not found")
+        session_manager.update_active(sessionid)
         avatar_session.flush_talk()
         return json_ok()
     except Exception as e:
@@ -100,6 +102,7 @@ async def humanaudio(request):
         avatar_session = get_session(request, sessionid)
         if avatar_session is None:
             return json_error("session not found")
+        session_manager.update_active(sessionid)
         avatar_session.put_audio_file(filebytes, datainfo)
         return json_ok()
     except Exception as e:
@@ -115,6 +118,7 @@ async def set_audiotype(request):
         avatar_session = get_session(request, sessionid)
         if avatar_session is None:
             return json_error("session not found")
+        session_manager.update_active(sessionid)
         avatar_session.set_custom_state(params['audiotype'])
         return json_ok()
     except Exception as e:
@@ -130,6 +134,7 @@ async def record(request):
         avatar_session = get_session(request, sessionid)
         if avatar_session is None:
             return json_error("session not found")
+        session_manager.update_active(sessionid)
         if params['type'] == 'start_record':
             avatar_session.start_recording()
         elif params['type'] == 'end_record':

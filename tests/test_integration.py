@@ -13,6 +13,18 @@ class MockAvatar:
     def is_speaking(self):
         return False
     recording = False
+    def flush_talk(self):
+        pass
+    def put_msg_txt(self, text, datainfo):
+        pass
+    def put_audio_file(self, bytes, datainfo):
+        pass
+    def set_custom_state(self, state):
+        pass
+    def start_recording(self):
+        pass
+    def stop_recording(self):
+        pass
 
 
 @pytest.fixture(autouse=True)
@@ -182,3 +194,48 @@ class TestWebRTCOfferBlock:
         data = json.loads(resp.text)
         assert data["code"] == -1
         assert data["msg"] == "blocked"
+
+
+class TestIdleResetOnInteraction:
+    @pytest.mark.asyncio
+    async def test_human_route_resets_idle(self):
+        from server.routes import human
+        session_manager.add_session("idle-h", MockAvatar())
+        old = session_manager._last_active["idle-h"]
+
+        request = AsyncMock()
+        request.app = web.Application()
+        request.json.return_value = {"sessionid": "idle-h",
+                                      "type": "echo", "text": "hello"}
+
+        await human(request)
+        assert session_manager._last_active["idle-h"] > old
+
+    @pytest.mark.asyncio
+    async def test_humanaudio_route_resets_idle(self):
+        from server.routes import humanaudio
+        session_manager.add_session("idle-a", MockAvatar())
+        old = session_manager._last_active["idle-a"]
+
+        request = AsyncMock()
+        request.app = web.Application()
+        request.post.return_value = {"sessionid": "idle-a",
+                                      "file": MagicMock(
+                                          file=MagicMock(read=MagicMock(
+                                              return_value=b"audio-data")))}
+
+        await humanaudio(request)
+        assert session_manager._last_active["idle-a"] > old
+
+    @pytest.mark.asyncio
+    async def test_interrupt_talk_resets_idle(self):
+        from server.routes import interrupt_talk
+        session_manager.add_session("idle-i", MockAvatar())
+        old = session_manager._last_active["idle-i"]
+
+        request = AsyncMock()
+        request.app = web.Application()
+        request.json.return_value = {"sessionid": "idle-i"}
+
+        await interrupt_talk(request)
+        assert session_manager._last_active["idle-i"] > old

@@ -172,15 +172,16 @@ def main():
     appasync["opt"] = opt
     appasync["rtc_manager"] = rtc_manager
 
-    # Background session cleanup
     async def cleanup_loop():
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(120)
             session_manager.cleanup_expired_sessions()
-    cleanup_task = asyncio.ensure_future(cleanup_loop())
+            if session_manager.active_count() == 0:
+                logger.info("No active sessions, shutting down")
+                asyncio.get_running_loop().stop()
+                break
 
     async def on_shutdown(app):
-        cleanup_task.cancel()
         await rtc_manager.shutdown()
 
     appasync.on_shutdown.append(on_shutdown)
@@ -212,6 +213,7 @@ def main():
     def run_server(runner):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        cleanup_task = loop.create_task(cleanup_loop())
         loop.run_until_complete(runner.setup())
         site = web.TCPSite(runner, '0.0.0.0', opt.listenport)
         loop.run_until_complete(site.start())
@@ -221,7 +223,13 @@ def main():
                 if k!=0:
                     push_url = opt.push_url+str(k)
                 loop.run_until_complete(rtc_manager.handle_rtcpush(push_url, str(k)))
-        loop.run_forever()    
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            cleanup_task.cancel()
+            loop.run_until_complete(rtc_manager.shutdown())
     #Thread(target=run_server, args=(web.AppRunner(appasync),)).start()
     run_server(web.AppRunner(appasync))
 

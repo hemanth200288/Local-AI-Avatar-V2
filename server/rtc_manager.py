@@ -37,6 +37,15 @@ class RTCManager:
         """
         self.opt = opt
         self.pcs: set = set()
+        self._pc_by_sessionid: Dict[str, RTCPeerConnection] = {}
+        session_manager.set_on_remove(self._close_pc_for_session)
+
+    def _close_pc_for_session(self, sessionid: str):
+        pc = self._pc_by_sessionid.pop(sessionid, None)
+        if pc:
+            logger.info("Closing PC for session %s", sessionid)
+            asyncio.ensure_future(pc.close())
+            self.pcs.discard(pc)
 
     async def handle_offer(self, request):
         """处理 WebRTC offer 信令"""
@@ -77,6 +86,7 @@ class RTCManager:
             configuration=RTCConfiguration(iceServers=[ice_server])
         )
         self.pcs.add(pc)
+        self._pc_by_sessionid[sessionid] = pc
 
         @pc.on("connectionstatechange")
         async def on_connectionstatechange():
@@ -84,6 +94,7 @@ class RTCManager:
             if pc.connectionState in ("failed", "closed"):
                 await pc.close()
                 self.pcs.discard(pc)
+                self._pc_by_sessionid.pop(sessionid, None)
                 session_manager.remove_session(sessionid)
 
         # 添加发送轨道
@@ -150,3 +161,4 @@ class RTCManager:
         coros = [pc.close() for pc in self.pcs]
         await asyncio.gather(*coros)
         self.pcs.clear()
+        self._pc_by_sessionid.clear()
