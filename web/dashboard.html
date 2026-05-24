@@ -243,6 +243,14 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+            let recognition;
+            let silenceTimer;
+            const SILENCE_DELAY = 2000; // 2 seconds of silence to auto-submit
+            const isSpeechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+
             // Auto-start connection on page load
             setTimeout(function() {
                 console.log("Auto-starting connection...");
@@ -430,15 +438,12 @@
                 $('#chat-message').val('');
             });
 
-            // Push to talk feature
-            let mediaRecorder;
-            let audioChunks = [];
-            let isRecording = false;
-            let recognition;
-            
-            // Check if browser supports speech recognition
-            const isSpeechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-            
+            // Voice Control Features
+            // Inform user about auto-submit
+            setTimeout(() => {
+                addChatMessage('Voice Auto-Submit is active. Speak and wait 2 seconds to send automatically.', 'system');
+            }, 2000);
+
             if (isSpeechRecognitionSupported) {
                 recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
                 recognition.continuous = true;
@@ -446,6 +451,9 @@
                 recognition.lang = 'en-US';
                 
                 recognition.onresult = function(event) {
+                    // Reset silence timer on any result (user is still talking)
+                    clearTimeout(silenceTimer);
+
                     let interimTranscript = '';
                     let finalTranscript = '';
                     
@@ -454,17 +462,32 @@
                             finalTranscript += event.results[i][0].transcript;
                         } else {
                             interimTranscript += event.results[i][0].transcript;
-                            $('#chat-message').val(interimTranscript);
                         }
                     }
                     
-                    if (finalTranscript) {
-                        $('#chat-message').val(finalTranscript);
+                    // Update text area with live preview
+                    if (interimTranscript || finalTranscript) {
+                        $('#chat-message').val(finalTranscript || interimTranscript);
+                    }
+
+                    // Start silence timer to auto-submit
+                    if (isRecording) {
+                        silenceTimer = setTimeout(() => {
+                            console.log("Silence detected. Auto-submitting...");
+                            stopRecording();
+                        }, SILENCE_DELAY);
                     }
                 };
                 
                 recognition.onerror = function(event) {
                     console.error('Speech recognition error:', event.error);
+                };
+
+                recognition.onend = function() {
+                    // If it ends unexpectedly but we are still in "recording" state, restart it
+                    if (isRecording) {
+                        recognition.start();
+                    }
                 };
             }
             
@@ -534,45 +557,48 @@
                         
                         $('#voice-record-btn').addClass('recording-pulse');
                         $('#voice-record-btn').css('background-color', '#dc3545');
-                        $('#voice-record-label').text('Recording... Click again to stop and send');
+                        $('#voice-record-label').text('Listening... (Auto-submit on silence)');
                         
                         if (recognition) {
-                            recognition.start();
+                            try {
+                                recognition.start();
+                            } catch (e) {
+                                console.warn("Recognition already started or error:", e);
+                            }
                         }
                     })
                     .catch(function(error) {
                         console.error('Cannot access microphone:', error);
-                        let msg = 'Cannot access microphone. ';
-                        if (!window.isSecureContext) {
-                            msg += '\n\nNote: Browsers require HTTPS or localhost for microphone access. If you are using an IP address, please use HTTPS or access via localhost.';
-                        } else {
-                            msg += 'Please check browser permission settings.';
-                        }
-                        alert(msg);
+                        alert('Cannot access microphone. Please check permissions.');
                     });
             }
 
             function stopRecording() {
                 if (!isRecording) return;
                 
-                mediaRecorder.stop();
+                clearTimeout(silenceTimer);
                 isRecording = false;
                 
-                // Stop all tracks
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    // Stop all tracks
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
                 
                 // Reset visual feedback
                 $('#voice-record-btn').removeClass('recording-pulse');
                 $('#voice-record-btn').css('background-color', '');
-                $('#voice-record-label').text('Click microphone to start talking');
+                $('#voice-record-label').text('Click mic to start talking');
                 
                 // Stop speech recognition
                 if (recognition) {
                     recognition.stop();
                 }
-                
+
                 // Send audio blob to server
                 mediaRecorder.onstop = function() {
+                    if (audioChunks.length === 0) return;
+                    
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     const formData = new FormData();
                     formData.append('file', audioBlob, 'voice.wav');
@@ -586,6 +612,7 @@
                     .then(data => {
                         if (data.code === 0) {
                             addChatMessage(data.data.text, 'user');
+                            $('#chat-message').val('');
                         } else {
                             console.error('Server-side STT failed:', data.msg);
                         }
