@@ -173,13 +173,23 @@ def main():
     appasync["rtc_manager"] = rtc_manager
 
     async def cleanup_loop():
+        import time
+        import os
+        interval = int(os.environ.get("CLEANUP_INTERVAL", 10))
+        project_timeout = int(os.environ.get("PROJECT_EMPTY_TIMEOUT", 15))
+        zero_sessions_start_time = time.time() # Start counting from server boot
+        
         while True:
-            await asyncio.sleep(120)
             session_manager.cleanup_expired_sessions()
             if session_manager.active_count() == 0:
-                logger.info("No active sessions, shutting down")
-                asyncio.get_running_loop().stop()
-                break
+                if zero_sessions_start_time is None:
+                    zero_sessions_start_time = time.time()
+                elif time.time() - zero_sessions_start_time > project_timeout:
+                    logger.info(f"No active sessions for {project_timeout} seconds, force shutting down")
+                    os._exit(0)
+            else:
+                zero_sessions_start_time = None
+            await asyncio.sleep(interval)
 
     async def on_shutdown(app):
         await rtc_manager.shutdown()
