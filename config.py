@@ -45,8 +45,8 @@ def parse_args():
     # ─── TTS ───────────────────────────────────────────────────────────
     parser.add_argument('--tts', type=str, default='edgetts',
                         help="tts plugin: edgetts/gpt-sovits/cosyvoice/fishtts/tencent/doubao/indextts2/azuretts/qwentts")
-    parser.add_argument('--REF_FILE', type=str, default="zh-CN-YunxiaNeural",
-                        help="参考文件名或语音模型ID")
+    parser.add_argument('--REF_FILE', type=str, default="en-IN-PrabhatNeural",
+                        help="Voice model ID or reference file name")
     parser.add_argument('--REF_TEXT', type=str, default=None)
     parser.add_argument('--TTS_SERVER', type=str, default='http://127.0.0.1:9880')
 

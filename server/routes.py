@@ -192,10 +192,58 @@ async def admin_sessions(request):
 
 # ─── 路由注册 ──────────────────────────────────────────────────────────────
 
+async def humanaudiochat(request):
+    """上传音频并进行 STT + LLM 对话"""
+    try:
+        form = await request.post()
+        sessionid = str(form.get('sessionid', ''))
+        fileobj = form["file"]
+        filebytes = fileobj.file.read()
+
+        avatar_session = get_session(request, sessionid)
+        if avatar_session is None:
+            return json_error("session not found")
+
+        # 保存临时文件用于 STT
+        temp_audio = f"data/tmp/stt_{sessionid}_{int(time.time())}.wav"
+        os.makedirs(os.path.dirname(temp_audio), exist_ok=True)
+        with open(temp_audio, "wb") as f:
+            f.write(filebytes)
+
+        # 调用 STT
+        from llm import stt_response, llm_response
+        text = stt_response(temp_audio)
+        
+        # 删除临时文件
+        try:
+            os.remove(temp_audio)
+        except:
+            pass
+
+        if not text:
+            return json_error("STT failed")
+
+        logger.info(f"STT Result: {text}")
+
+        # 调用 LLM
+        datainfo = {}
+        asyncio.get_event_loop().run_in_executor(
+            None, llm_response, text, avatar_session, datainfo
+        )
+
+        return json_ok(data={"text": text})
+    except Exception as e:
+        logger.exception('humanaudiochat exception:')
+        return json_error(str(e))
+
+import time
+import os
+
 def setup_routes(app):
     """注册所有路由到 aiohttp app"""
     app.router.add_post("/human", human)
     app.router.add_post("/humanaudio", humanaudio)
+    app.router.add_post("/humanaudiochat", humanaudiochat)
     app.router.add_post("/set_audiotype", set_audiotype)
     app.router.add_post("/record", record)
     app.router.add_post("/interrupt_talk", interrupt_talk)

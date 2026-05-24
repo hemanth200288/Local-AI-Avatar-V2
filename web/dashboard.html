@@ -673,7 +673,13 @@
                     })
                     .catch(function(error) {
                         console.error('Cannot access microphone:', error);
-                        alert('Cannot access microphone, please check browser permission settings.');
+                        let msg = 'Cannot access microphone. ';
+                        if (!window.isSecureContext) {
+                            msg += '\n\nNote: Browsers require HTTPS or localhost for microphone access. If you are using an IP address, please use HTTPS or access via localhost.';
+                        } else {
+                            msg += 'Please check browser permission settings.';
+                        }
+                        alert(msg);
                     });
             }
 
@@ -690,33 +696,34 @@
                 $('#voice-record-btn').removeClass('recording-pulse');
                 $('#voice-record-btn').css('background-color', '');
                 
-                // Stop speech recognition
+                // Stop speech recognition (optional, keep it for real-time feedback if desired, but we'll use server-side for final)
                 if (recognition) {
                     recognition.stop();
                 }
                 
-                // Get recognized text and send
-                setTimeout(function() {
-                    const recognizedText = $('#chat-message').val().trim();
-                    if (recognizedText) {
-                        // Send recognized text
-                        fetch('/human', {
-                            body: JSON.stringify({
-                                text: recognizedText,
-                                type: 'chat',
-                                interrupt: true,
-                                sessionid: String(document.getElementById('sessionid').value),
-                            }),
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            method: 'POST'
-                        });
-                        
-                        addChatMessage(recognizedText, 'user');
-                        $('#chat-message').val('');
-                    }
-                }, 500); 
+                // Send audio blob to server
+                mediaRecorder.onstop = function() {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'voice.wav');
+                    formData.append('sessionid', String(document.getElementById('sessionid').value));
+
+                    fetch('/humanaudiochat', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 0) {
+                            addChatMessage(data.data.text, 'user');
+                        } else {
+                            console.error('Server-side STT failed:', data.msg);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error sending audio to server:', error);
+                    });
+                };
             }
 
             // WebRTC related features
